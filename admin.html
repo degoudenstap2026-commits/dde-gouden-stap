@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Beheer - De Gouden Stap</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><div class="container nav"><a class="brand" href="index.html"><span class="logo">GS</span><span><strong data-site-name>De Gouden Stap</strong><small>BEHEER</small></span></a><nav class="menu"><a href="index.html">Website</a><a class="active" href="admin.html">Beheer</a></nav></div></header>
+<main class="container admin">
+<div class="notice">Log in met je Supabase-beheerdersaccount. Kies afbeeldingen rechtstreeks vanaf je computer; ze worden online opgeslagen. Je kunt ook een bestaande afbeeldings-URL gebruiken.</div>
+<section class="panel" style="margin-bottom:20px"><h2>Beheerlogin</h2><div class="admin-grid">
+<div><label>E-mailadres</label><input id="admin-email" type="email" autocomplete="username" placeholder="beheer@jouwdomein.nl"></div>
+<div><label>Wachtwoord</label><input id="admin-password" type="password" autocomplete="current-password" placeholder="Wachtwoord"></div>
+</div><p><button class="btn" onclick="login()">Inloggen</button> <button class="btn" style="background:#777" onclick="logout()">Uitloggen</button></p><div id="auth-status" class="small"></div></section>
+<div id="save-status" class="small" role="status"></div><div id="app"></div>
+</main><div class="savebar"><button class="btn" onclick="save()">Opslaan</button> <button class="btn" style="background:#777" onclick="resetData()">Terug naar standaard</button></div>
+<footer data-footer></footer><script src="supabase-config.js"></script><script src="app.js"></script>
+<script>
+let d;
+const BUCKET='site-images';
+function esc(x){return String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;")}
+function input(label,path,value,multi=false,type='text'){return `<label>${label}</label>${multi?`<textarea data-path="${path}">${esc(value)}</textarea>`:`<input type="${type}" data-path="${path}" value="${esc(value)}">`}`}
+function imageField(label,path,value){
+ return `<div class="image-field">${input(label+' (optionele URL)',path,value||'',false,'url')}<label>Kies afbeeldingsbestand</label><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" data-image-upload="${path}"><small class="small">Kies een afbeelding vanaf je apparaat (maximaal 8 MB). Na upload wordt deze automatisch gekoppeld.</small><img class="upload-preview" src="${esc(value||'')}" alt="Voorbeeld afbeelding" onerror="this.style.display='none'" style="display:${value?'block':'none'};max-width:150px;max-height:100px;object-fit:contain;margin-top:8px"></div>`;
+}
+function render(){
+ app.innerHTML=`<div class="admin-grid">
+ <section class="panel"><h2>Algemeen</h2>${input('Bedrijfsnaam','site.name',d.site.name)}${input('Tagline','site.tagline',d.site.tagline)}${input('Primaire kleur','site.primary',d.site.primary)}${input('Donkere kleur','site.dark',d.site.dark)}${input('Achtergrondkleur','site.cream',d.site.cream)}${input('Tekstkleur','site.text',d.site.text)}${input('Footer','site.footer',d.site.footer)}</section>
+ <section class="panel"><h2>Homepage</h2>${input('Kleine titel','home.eyebrow',d.home.eyebrow)}${input('Hoofdtitel','home.title',d.home.title)}${input('Cursieve titel','home.titleItalic',d.home.titleItalic)}${input('Intro','home.intro',d.home.intro,true)}${imageField('Hero-afbeelding','home.heroImage',d.home.heroImage)}${input('Over titel','home.aboutTitle',d.home.aboutTitle)}${input('Over tekst','home.aboutText',d.home.aboutText,true)}${imageField('Over-afbeelding','home.aboutImage',d.home.aboutImage)}${input('Detail titel','home.detailTitle',d.home.detailTitle)}${input('Detail tekst','home.detailText',d.home.detailText,true)}${input('CTA titel','home.ctaTitle',d.home.ctaTitle)}${input('CTA tekst','home.ctaText',d.home.ctaText)}</section></div>
+ <section class="panel" style="margin-top:20px"><h2>Homepage-kaarten</h2><div class="admin-grid">${(d.home.cards||[]).map((c,i)=>`<div class="panel">${input('Titel',`home.cards.${i}.title`,c.title)}${input('Beschrijving',`home.cards.${i}.text`,c.text,true)}${imageField('Afbeelding',`home.cards.${i}.image`,c.image)}${input('Link (optioneel)',`home.cards.${i}.url`,c.url||'',false,'url')}</div>`).join('')}</div></section>
+ <section class="panel" style="margin-top:20px"><h2>Categorieën</h2><div class="admin-grid">${(d.categories||[]).map((c,i)=>`<div class="panel"><h3>${esc(c.title||'Nieuwe categorie')}</h3>${input('Naam',`categories.${i}.title`,c.title)}${input('Beschrijving',`categories.${i}.text`,c.text,true)}${imageField('Afbeelding',`categories.${i}.image`,c.image)}${input('Link (optioneel)',`categories.${i}.url`,c.url||'',false,'url')}<p><button type="button" class="btn" style="background:#9a5148" onclick="removeCategory(${i})">Categorie verwijderen</button></p></div>`).join('')}</div><p><button type="button" class="btn" onclick="addCategory()">+ Categorie toevoegen</button></p></section>
+ <section class="panel" style="margin-top:20px"><h2>Producten</h2><p class="small">Voeg producten toe, wijzig ze of verwijder ze. Vul bij Categorie exact de naam van een bestaande categorie in.</p><div class="admin-grid">${(d.products||[]).map((p,i)=>`<div class="panel"><h3>${esc(p.name||'Nieuw product')}</h3>${input('Productnaam',`products.${i}.name`,p.name)}${input('Categorie',`products.${i}.category`,p.category)}${imageField('Productafbeelding',`products.${i}.image`,p.image)}${input('Product-URL (optioneel)',`products.${i}.url`,p.url||'',false,'url')}<p><button type="button" class="btn" style="background:#9a5148" onclick="removeProduct(${i})">Product verwijderen</button></p></div>`).join('')}</div><p><button type="button" class="btn" onclick="addProduct()">+ Product toevoegen</button></p></section>`;
+}
+function addCategory(){collectFields();d.categories=d.categories||[];d.categories.push({title:'',text:'',image:'',url:''});render();document.getElementById('save-status').textContent='Nieuwe categorie toegevoegd. Vul de gegevens in en klik op Opslaan.'}
+function removeCategory(i){collectFields();if(!confirm('Deze categorie verwijderen?'))return;d.categories.splice(i,1);render()}
+function addProduct(){collectFields();d.products=d.products||[];d.products.push({name:'',category:'',image:'',url:''});render();document.getElementById('save-status').textContent='Nieuw product toegevoegd. Vul de gegevens in en klik op Opslaan.'}
+function removeProduct(i){collectFields();if(!confirm('Dit product verwijderen?'))return;d.products.splice(i,1);render()}
+function setPath(obj,path,val){const parts=path.split('.');let o=obj;for(let i=0;i<parts.length-1;i++){const k=parts[i];if(o[k]===undefined)o[k]=/^\d+$/.test(parts[i+1])?[]:{};o=o[k]}o[parts.at(-1)]=val}
+function getPath(obj,path){return path.split('.').reduce((o,k)=>o?.[k],obj)}
+async function login(){const status=document.getElementById('auth-status');try{const c=await getSupabaseClient();if(!c){status.textContent='Vul eerst supabase-config.js in.';return}const {error}=await c.auth.signInWithPassword({email:document.getElementById('admin-email').value,password:document.getElementById('admin-password').value});status.textContent=error?('Inloggen mislukt: '+error.message):'Ingelogd. Je kunt afbeeldingen uploaden en online opslaan.'}catch(e){status.textContent='Inloggen mislukt: '+e.message}}
+async function logout(){const c=await getSupabaseClient().catch(()=>null);if(c)await c.auth.signOut();document.getElementById('auth-status').textContent='Uitgelogd.'}
+async function uploadImage(inputEl){
+ const file=inputEl.files?.[0];if(!file)return;
+ const path=inputEl.dataset.imageUpload,status=document.getElementById('save-status');
+ if(!file.type.startsWith('image/')){status.textContent='Kies een geldig afbeeldingsbestand.';inputEl.value='';return}
+ if(file.size>8*1024*1024){status.textContent='De afbeelding is groter dan 8 MB. Kies een kleiner bestand.';inputEl.value='';return}
+ status.textContent='Afbeelding uploaden…';
+ try{
+  const client=await getSupabaseClient();if(!client)throw new Error('Supabase is niet ingesteld.');
+  const {data:sessionData}=await client.auth.getSession();if(!sessionData?.session)throw new Error('Log eerst in om afbeeldingen online te uploaden.');
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const objectPath=`${Date.now()}-${crypto.randomUUID()}.${ext}`;
+  const {error}=await client.storage.from(BUCKET).upload(objectPath,file,{cacheControl:'3600',upsert:false,contentType:file.type});
+  if(error)throw error;
+  const {data}=client.storage.from(BUCKET).getPublicUrl(objectPath);
+  setPath(d,path,data.publicUrl);
+  const field=inputEl.closest('.image-field');
+  const textInput=field.querySelector(`[data-path="${CSS.escape(path)}"]`);textInput.value=data.publicUrl;
+  const preview=field.querySelector('.upload-preview');preview.src=data.publicUrl;preview.style.display='block';
+  status.textContent='Afbeelding geüpload. Klik op Opslaan om de wijziging op de website te publiceren.';
+ }catch(e){status.textContent='Upload mislukt: '+(e.message||'controleer de Supabase Storage-instellingen.')}
+}
+function collectFields(){document.querySelectorAll('[data-path]').forEach(el=>setPath(d,el.dataset.path,el.value.trim()))}
+async function save(){collectFields();const status=document.getElementById('save-status');status.textContent='Bezig met opslaan…';try{const result=await saveData(d);status.textContent=result.cloud?'Online opgeslagen! Bezoekers zien de wijzigingen na vernieuwen.':result.loginRequired?'Alleen lokaal opgeslagen. Log in als beheerder om online op te slaan.':'Lokaal opgeslagen. Configureer Supabase en log in om wijzigingen te delen.';render()}catch(e){status.textContent='Opslaan mislukt: '+(e.message||'controleer Supabase en databasebeleid')+'. De lokale kopie is bewaard.'}}
+document.addEventListener('change',e=>{if(e.target.matches('[data-image-upload]'))uploadImage(e.target)});
+async function init(){d=await loadData();applySite(d);render()}
+init().catch(e=>document.getElementById('save-status').textContent='Laden mislukt: '+e.message);
+</script></body></html>
